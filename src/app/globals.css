@@ -1,0 +1,160 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 224 71.4% 4.1%;
+    --card: 0 0% 100%;
+    --card-foreground: 224 71.4% 4.1%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 71.4% 4.1%;
+    --primary: 277 100% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 277 30% 95%;
+    --secondary-foreground: 277 60% 40%;
+    --muted: 277 20% 95%;
+    --muted-foreground: 277 10% 40%;
+    --accent: 277 30% 95%;
+    --accent-foreground: 277 60% 40%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 277 20% 90%;
+    --input: 277 20% 90%;
+    --ring: 277 100% 53%;
+    --radius: 0.5rem;
+    
+    /* Cores para gráficos */
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+  }
+
+  /* Tema escuro removido - projeto utiliza apenas tema claro */
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  
+  /* Remove as setas de incremento/decremento dos campos numéricos */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  
+  /* Estilos para o Mapa Leaflet */
+  .leaflet-container {
+    width: 100%;
+    height: 100%;
+    min-height: 580px;
+    z-index: 1;
+  }
+  
+  /* Estilos para pop-ups do mapa */
+  .map-popup-title {
+    font-weight: bold;
+    font-size: 14px;
+    margin-bottom: 8px;
+    color: hsl(var(--foreground));
+  }
+  
+  .map-popup-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 8px;
+  }
+  
+  .map-popup-info-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+  }
+  
+  .map-popup-actions {
+    display: flex;
+    justify-content: center;
+    margin-top: 8px;
+  }
+  
+  .map-popup-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    background-color: hsl(var(--primary));
+    color: white;
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    text-decoration: none;
+  }
+  
+  .map-popup-button:hover {
+    background-color: hsl(var(--primary) / 0.9);
+  }
+  
+  /* Estilos para legenda do mapa */
+  .map-legend {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    background-color: white;
+    border-radius: 4px;
+    padding: 8px;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+    z-index: 1000;
+    font-size: 12px;
+  }
+  
+  .map-legend-title {
+    font-weight: bold;
+    margin-bottom: 4px;
+  }
+  
+  .map-legend-items {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .map-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  
+  .map-legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+  }
+  
+  .map-legend-color.pequena {
+    background-color: hsl(var(--chart-1));
+  }
+  
+  .map-legend-color.media {
+    background-color: hsl(var(--chart-2));
+  }
+  
+  .map-legend-color.grande {
+    background-color: hsl(var(--chart-3));
+  }
+  
+  /* Para Firefox */
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+}

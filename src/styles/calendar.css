@@ -1,0 +1,120 @@
+/* Estilos para o React Big Calendar */
+.rbc-calendar {
+  width: 100%;
+  min-height: 580px;
+  border-radius: 0.5rem;
+  background-color: white;
+  font-family: inherit;
+}
+
+.rbc-toolbar {
+  margin-bottom: 1rem;
+  padding: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.rbc-toolbar-label {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.rbc-btn-group {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.rbc-btn-group button {
+  background-color: transparent;
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--foreground));
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.rbc-btn-group button:hover {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+.rbc-btn-group button.rbc-active {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-color: hsl(var(--primary));
+}
+
+.rbc-header {
+  padding: 0.75rem 0.5rem;
+  font-weight: 500;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.rbc-event {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-radius: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+}
+
+.rbc-event.agendada {
+  background-color: hsl(var(--primary));
+}
+
+.rbc-event.realizada {
+  background-color: hsl(142, 76%, 36%);
+}
+
+.rbc-event.cancelada {
+  background-color: hsl(0, 84%, 60%);
+}
+
+.rbc-event.atrasada {
+  background-color: hsl(38, 92%, 50%);
+}
+
+.rbc-today {
+  background-color: hsl(var(--accent) / 0.2);
+}
+
+.rbc-off-range-bg {
+  background-color: hsl(var(--muted) / 0.3);
+}
+
+.rbc-day-bg + .rbc-day-bg {
+  border-left: 1px solid hsl(var(--border));
+}
+
+.rbc-month-row + .rbc-month-row {
+  border-top: 1px solid hsl(var(--border));
+}
+
+.rbc-date-cell {
+  padding: 0.25rem;
+  text-align: right;
+  font-size: 0.875rem;
+}
+
+.rbc-date-cell.rbc-now {
+  font-weight: bold;
+}
+
+.rbc-overlay {
+  background-color: white;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.25rem;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  padding: 0.5rem;
+}
+
+.rbc-overlay-header {
+  font-weight: 600;
+  padding: 0.5rem;
+  border-bottom: 1px solid hsl(var(--border));
+}
