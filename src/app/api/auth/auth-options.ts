@@ -5,7 +5,7 @@ import { JWT } from 'next-auth/jwt';
 import { CognitoIdentityProviderClient, InitiateAuthCommand } from '@aws-sdk/client-cognito-identity-provider';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { getUserByEmail } from '@/lib/tenant-utils';
+import { getUserByEmail, getUserByCognitoId } from '@/lib/tenant-utils';
 
 interface CustomSession extends Session {
   user: {
@@ -72,12 +72,19 @@ export const authOptions = {
               return null;
             }
 
-            // Buscar informações do usuário no DynamoDB
-            const user = await getUserByEmail(decoded.email);
+            // Buscar informações do usuário no DynamoDB usando o ID do Cognito (mais eficiente)
+            console.log('Buscando usuário pelo Cognito ID (método otimizado):', decoded.sub);
+            let user = await getUserByCognitoId(decoded.sub);
             
+            // Fallback: Se não encontrou pelo ID, tenta pelo email
             if (!user) {
-              console.error('Usuário não encontrado no DynamoDB');
-              return null;
+              console.log('Usuário não encontrado pelo Cognito ID, tentando pelo email');
+              user = await getUserByEmail(decoded.email);
+              
+              if (!user) {
+                console.error('Usuário não encontrado no DynamoDB');
+                return null;
+              }
             }
 
             return {

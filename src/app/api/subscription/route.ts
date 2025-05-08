@@ -7,10 +7,25 @@ import { SubscriptionPlan } from '@/lib/types/subscription';
 // Endpoint para obter o status da assinatura do usuário
 export async function GET(request: NextRequest) {
   try {
+    console.log('Recebida solicitação para verificar assinatura');
+    
     // Obter sessão do usuário
     const session = await getServerSession(authOptions);
+    console.log('Status da sessão:', {
+      temSessao: !!session,
+      temUsuario: !!session?.user,
+      dadosUsuario: session?.user ? {
+        id: session.user.id,
+        email: session.user.email,
+        // @ts-ignore - verificar se esses campos existem
+        tenantId: session.user.tenantId,
+        // @ts-ignore - verificar se esses campos existem
+        cognitoId: session.user.cognitoId
+      } : 'Não disponível'
+    });
 
     if (!session || !session.user) {
+      console.log('Usuário não autenticado ao acessar API de assinatura');
       return NextResponse.json(
         { error: 'Não autenticado' },
         { status: 401 }

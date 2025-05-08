@@ -13,13 +13,13 @@ import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { S3Client } from '@aws-sdk/client-s3';
 
 // Configurações da AWS vindas das variáveis de ambiente
-const REGION = process.env.AWS_REGION || 'us-east-1';
-const ACCESS_KEY = process.env.AWS_ACCESS_KEY_ID || '';
-const SECRET_KEY = process.env.AWS_SECRET_ACCESS_KEY || '';
+const REGION = process.env.AWS_REGION || process.env.COGNITO_REGION || 'us-east-1';
+const ACCESS_KEY = process.env.ACCESS_KEY_ID_AWS || '';
+const SECRET_KEY = process.env.SECRET_ACCESS_KEY_AWS || '';
 
 // Verificar configuração mínima
 if (!ACCESS_KEY || !SECRET_KEY) {
-  console.warn('⚠️ Credenciais AWS não configuradas. Configure AWS_ACCESS_KEY_ID e AWS_SECRET_ACCESS_KEY.');
+  console.warn('⚠️ Credenciais AWS não configuradas. Configure ACCESS_KEY_ID_AWS e SECRET_ACCESS_KEY_AWS.');
 }
 
 // Inicializar clientes

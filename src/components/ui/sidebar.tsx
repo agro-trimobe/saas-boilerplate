@@ -103,7 +103,7 @@ export function Sidebar({ open, setOpen }: SidebarProps) {
             variant="outline"
             size={open ? "default" : "icon"}
             className="justify-start"
-            onClick={() => signOut()}
+            onClick={() => signOut({ callbackUrl: '/' })}
           >
             <LogOut className="h-4 w-4 mr-2" />
             {open && "Sair"}
