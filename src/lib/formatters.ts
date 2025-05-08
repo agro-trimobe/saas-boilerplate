@@ -13,6 +13,17 @@ export function formatarMoeda(valor: number): string {
 }
 
 /**
+ * Formata um valor numérico como moeda (versão genérica)
+ * Mantém o padrão brasileiro por default, mas pode ser configurado
+ */
+export function formatCurrency(valor: number, locale: string = 'pt-BR', currency: string = 'BRL'): string {
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency: currency
+  }).format(valor);
+}
+
+/**
  * Formata um valor numérico com separadores de milhares
  * @param valor Valor a ser formatado
  * @param casasDecimais Número de casas decimais (padrão: 2)

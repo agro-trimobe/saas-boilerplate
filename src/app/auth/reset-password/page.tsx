@@ -81,14 +81,14 @@ function ResetPasswordForm() {
       } else {
         toast({
           title: "Erro",
-          description: data.message || "Erro ao redefinir senha",
+          description: data.error || "Não foi possível redefinir a senha",
           variant: "destructive",
         });
       }
     } catch (error) {
       toast({
         title: "Erro",
-        description: "Erro ao redefinir senha",
+        description: "Ocorreu um erro ao processar sua solicitação",
         variant: "destructive",
       });
     } finally {

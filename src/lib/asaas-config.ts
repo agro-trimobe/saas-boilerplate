@@ -9,6 +9,9 @@ const isClient = typeof window !== 'undefined';
 // Determinar se estamos em ambiente de produção
 const isProduction = process.env.NODE_ENV === 'production';
 
+// Verificar se estamos em processo de build (NEXT_PHASE é definido durante o build)
+const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build';
+
 // Função para tratar a chave da API que pode conter caracteres especiais
 function getAsaasApiKey(): string {
   // No lado do cliente, retornamos um valor específico
@@ -20,11 +23,19 @@ function getAsaasApiKey(): string {
   const envKey = process.env.ASAAS_API_KEY || '';
   
   // Em ambiente de produção, exigimos que a variável de ambiente esteja configurada corretamente
+  // Porém, durante o build, apenas exibimos um aviso
   if (isProduction) {
     if (!envKey || envKey.length < 10) {
       console.error('[Asaas] ERRO CRÍTICO: Chave de API do Asaas não configurada em ambiente de produção.');
       console.error('[Asaas] A variável ASAAS_API_KEY deve ser configurada no ambiente de deploy.');
-      throw new Error('Configuração de produção inválida: ASAAS_API_KEY não configurada');
+      
+      // Se estivermos durante o build, apenas exibimos um aviso, mas não bloqueamos
+      if (isBuildPhase) {
+        console.warn('[Asaas] Permitindo build sem a chave de API. Certifique-se de configurar em produção.');
+        return 'BUILD_PHASE_KEY';
+      } else {
+        throw new Error('Configuração de produção inválida: ASAAS_API_KEY não configurada');
+      }
     }
     
     // Remove aspas extras, espaços e quebras de linha em produção

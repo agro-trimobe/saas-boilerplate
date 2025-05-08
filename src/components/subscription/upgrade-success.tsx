@@ -6,8 +6,10 @@ import { CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { SubscriptionPlan } from '@/lib/types/subscription';
-import { formatarMoeda } from '@/lib/formatters';
-import { ASAAS_SUBSCRIPTION_BASIC_VALUE, ASAAS_SUBSCRIPTION_PREMIUM_VALUE } from '@/lib/asaas-config';
+import { formatCurrency } from '@/lib/formatters';
+// Valores padrão para demonstração
+const SUBSCRIPTION_BASIC_VALUE = 49.90;
+const SUBSCRIPTION_PREMIUM_VALUE = 99.90;
 import { useSubscription } from '@/hooks/use-subscription';
 
 interface UpgradeSuccessMessageProps {
@@ -23,8 +25,8 @@ function UpgradeSuccessMessage({ plan, onContinue }: UpgradeSuccessMessageProps)
   const { refreshSubscription } = useSubscription();
   
   const planValue = plan === 'BASIC' 
-    ? ASAAS_SUBSCRIPTION_BASIC_VALUE 
-    : ASAAS_SUBSCRIPTION_PREMIUM_VALUE;
+    ? SUBSCRIPTION_BASIC_VALUE 
+    : SUBSCRIPTION_PREMIUM_VALUE;
   
   // Função de redirecionamento
   const redirectToDashboard = () => {
@@ -83,7 +85,7 @@ function UpgradeSuccessMessage({ plan, onContinue }: UpgradeSuccessMessageProps)
         <CardContent className="pb-6">
           <p className="mb-4">
             Sua assinatura do <strong>Plano {plan === 'BASIC' ? 'Básico' : 'Premium'}</strong> foi processada com sucesso.
-            Você será cobrado <strong>{formatarMoeda(planValue)}</strong> mensalmente.
+            Você será cobrado <strong>{formatCurrency(planValue)}</strong> mensalmente.
           </p>
           <p className="text-muted-foreground">
             Você será redirecionado automaticamente para o Dashboard em {countdown} segundos...

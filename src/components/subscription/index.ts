@@ -5,6 +5,6 @@ export * from './subscription-layout';
 export * from './plan-features';
 export * from './breadcrumb-nav';
 export * from './plan-summary';
-export * from './enhanced-payment-form';
+export * from './simplified-payment-form'; // Usando o formulário simplificado
 export * from './subscription-transitions';
 export * from './upgrade-success';

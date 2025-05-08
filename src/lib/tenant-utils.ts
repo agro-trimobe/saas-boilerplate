@@ -1,202 +1,157 @@
-import { DynamoDBDocumentClient, PutCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, PutCommand, ScanCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { dynamodb } from './aws-config';
 import crypto from 'crypto';
 
+/**
+ * Tenant é a unidade básica de separação de dados no sistema multi-tenant.
+ * Cada usuário pertence a um tenant e só pode acessar recursos do seu tenant.
+ */
+
+type UserBasicInfo = {
+  email: string;
+  name: string;
+  cognitoId: string;
+  tenantId: string;
+  role: string;
+  status: string;
+};
+
+/**
+ * Cria um novo tenant (organização) e usuário administrador
+ * Estrutura simplificada com apenas campos essenciais para o boilerplate
+ */
 export async function createTenantAndUser(cognitoId: string, email: string, name: string): Promise<string> {
-  console.log('Iniciando criação de tenant e usuário:', { cognitoId, email, name });
   const timestamp = new Date().toISOString();
   const tenantId = crypto.randomUUID();
 
   try {
-    console.log('Configurando tenant com ID:', tenantId);
-    // 1. Criar o Tenant
+    // 1. Criar o Tenant com estrutura mínima
     const tenantCommand = new PutCommand({
       TableName: 'Tenants',
       Item: {
         PK: `TENANT#${tenantId}`,
         SK: 'METADATA#1',
         id: tenantId,
-        name: `${name}'s Organization`, // Nome padrão inicial
-        document: '', // Será preenchido posteriormente
+        name: `${name}'s Organization`,
         status: 'ACTIVE',
+        // Apenas configurações essenciais
         settings: {
-          maxUsers: 5,
-          maxStorage: 1024 * 1024 * 1024, // 1GB
-          features: ['basic']
+          planFeatures: ['basic'],
         },
         createdAt: timestamp,
         updatedAt: timestamp
       }
     });
 
-    console.log('Enviando comando para criar tenant no DynamoDB');
-    try {
-      await dynamodb.send(tenantCommand);
-      console.log('Tenant criado com sucesso:', tenantId);
-    } catch (error: unknown) {
-      console.error('Erro ao criar tenant:', error);
-      
-      // Tratamento seguro para o erro com verificação de tipo
-      if (error instanceof Error) {
-        throw new Error(`Erro ao criar tenant: ${error.message}`);
-      } else {
-        throw new Error('Erro desconhecido ao criar tenant');
-      }
-    }
+    await dynamodb.send(tenantCommand);
 
-    // 2. Criar o User
+    // 2. Criar o User com dados mínimos necessários
     const userCommand = new PutCommand({
       TableName: 'Users',
       Item: {
+        // Chaves de acesso
         PK: `TENANT#${tenantId}`,
         SK: `USER#${cognitoId}`,
+        GSI1PK: `USER#${cognitoId}`,
+        GSI1SK: `TENANT#${tenantId}`,
+        
+        // Apenas dados essenciais
         tenantId: tenantId,
         cognitoId: cognitoId,
         email: email,
         name: name,
-        role: 'ADMIN', // Primeiro usuário é sempre admin
+        role: 'ADMIN',
         status: 'ACTIVE',
         createdAt: timestamp,
-        updatedAt: timestamp,
-        // GSI1 (busca global por Cognito ID)
-        GSI1PK: `USER#${cognitoId}`,
-        GSI1SK: `TENANT#${tenantId}`,
-        // GSI2 (busca por email dentro do tenant)
-        GSI2PK: `TENANT#${tenantId}#EMAIL#${email}`,
-        GSI2SK: `USER#${cognitoId}`
+        updatedAt: timestamp
       }
     });
 
-    console.log('Enviando comando para criar usuário no DynamoDB');
-    try {
-      await dynamodb.send(userCommand);
-      console.log('Usuário criado com sucesso:', cognitoId);
-    } catch (error: unknown) {
-      console.error('Erro ao criar usuário:', error);
-      
-      // Tratamento seguro para o erro com verificação de tipo
-      if (error instanceof Error) {
-        throw new Error(`Erro ao criar usuário: ${error.message}`);
-      } else {
-        throw new Error('Erro desconhecido ao criar usuário');
-      }
-    }
+    await dynamodb.send(userCommand);
 
     return tenantId;
   } catch (error: unknown) {
-    console.error('Erro na criação de tenant e usuário:', error);
-    
-    // Tratamento seguro para o erro com verificação de tipo
-    const errorDetails: Record<string, unknown> = {};
-    
-    if (error && typeof error === 'object') {
-      if ('name' in error && error.name) {
-        errorDetails.name = error.name;
-      }
-      
-      if ('message' in error && error.message) {
-        errorDetails.message = error.message;
-      }
-      
-      // Verificar se é um erro específico do AWS SDK
-      if ('$metadata' in error) {
-        const metadata = error.$metadata as Record<string, unknown>;
-        errorDetails.code = metadata.httpStatusCode;
-        errorDetails.requestId = metadata.requestId;
-      }
+    console.error('Erro ao criar tenant:', error);
+    if (error instanceof Error) {
+      throw new Error(`Erro ao criar tenant e usuário: ${error.message}`);
+    } else {
+      throw new Error(`Erro desconhecido ao criar tenant e usuário`);
     }
-    
-    console.error('Detalhes do erro:', errorDetails);
-    throw error;
   }
-  
-  // Retornar o tenantId para uso em outras funções
-  return tenantId;
 }
 
-export async function getUserByEmail(email: string) {
+/**
+ * Busca um usuário pelo email
+ * Versão simplificada focada apenas no caso de uso principal
+ */
+export async function getUserByEmail(email: string): Promise<UserBasicInfo | null> {
   try {
-    console.log('Buscando usuário no DynamoDB pelo email:', email);
-    console.log('Tabela Users - Verificando conexão com DynamoDB');
-    
+    // Busca simplificada por email
     const command = new ScanCommand({
       TableName: 'Users',
       FilterExpression: 'email = :email',
       ExpressionAttributeValues: {
-        ':email': email
-      }
+        ':email': email,
+      },
+      Limit: 1,
     });
 
-    console.log('Comando ScanCommand configurado para busca de usuário');
+    const response = await dynamodb.send(command);
     
-    try {
-      const response = await dynamodb.send(command);
-      console.log('Resposta recebida do DynamoDB:', {
-        count: response.Count,
-        scannedCount: response.ScannedCount,
-        hasItems: response.Items && response.Items.length > 0
-      });
-      
-      if (response.Items && response.Items.length > 0) {
-        console.log('Usuário encontrado no DynamoDB:', {
-          id: response.Items[0].id,
-          email: response.Items[0].email,
-          tenantId: response.Items[0].tenantId,
-          PK: response.Items[0].PK,
-          SK: response.Items[0].SK
-        });
-        return response.Items[0];
-      }
-      
-      console.log('Usuário não encontrado no DynamoDB para o email:', email);
+    if (!response.Items || response.Items.length === 0) {
       return null;
-    } catch (dynamoError: unknown) {
-      console.error('Erro específico do DynamoDB ao buscar usuário:', dynamoError);
-      
-      // Tratamento seguro para o erro com verificação de tipo
-      const errorDetails: Record<string, unknown> = {};
-      
-      if (dynamoError && typeof dynamoError === 'object') {
-        if ('name' in dynamoError && dynamoError.name) {
-          errorDetails.name = dynamoError.name;
-        }
-        
-        if ('message' in dynamoError && dynamoError.message) {
-          errorDetails.message = dynamoError.message;
-        }
-        
-        // Verificar se é um erro específico do AWS SDK
-        if ('$metadata' in dynamoError) {
-          const metadata = dynamoError.$metadata as Record<string, unknown>;
-          errorDetails.code = metadata.httpStatusCode;
-          errorDetails.requestId = metadata.requestId;
-        }
-      }
-      
-      console.error('Detalhes do erro DynamoDB:', errorDetails);
-      throw dynamoError;
     }
+    
+    // Retornar apenas dados essenciais
+    const user = response.Items[0];
+    const cognitoId = user.SK.replace('USER#', '');
+    const tenantId = user.PK.replace('TENANT#', '');
+    
+    return {
+      email: user.email,
+      name: user.name,
+      cognitoId,
+      tenantId,
+      role: user.role,
+      status: user.status,
+    };
   } catch (error: unknown) {
-    console.error('Erro geral ao buscar usuário por email:', error);
+    console.error('Erro ao buscar usuário por email:', error);
+    if (error instanceof Error) {
+      throw new Error(`Erro ao buscar usuário: ${error.message}`);
+    } else {
+      throw new Error('Erro desconhecido ao buscar usuário');
+    }
+  }
+}
+
+/**
+ * Obtém um usuário por ID
+ * Função essencial para verificações de autenticação
+ */
+export async function getUserById(tenantId: string, cognitoId: string) {
+  try {
+    const command = new GetCommand({
+      TableName: 'Users',
+      Key: {
+        PK: `TENANT#${tenantId}`,
+        SK: `USER#${cognitoId}`,
+      },
+    });
     
-    // Tratamento seguro para o erro com verificação de tipo
-    const errorDetails: Record<string, unknown> = {};
+    const response = await dynamodb.send(command);
     
-    if (error && typeof error === 'object') {
-      if ('name' in error && error.name) {
-        errorDetails.name = error.name;
-      }
-      
-      if ('message' in error && error.message) {
-        errorDetails.message = error.message;
-      }
-      
-      if ('stack' in error && error.stack) {
-        errorDetails.stack = error.stack;
-      }
+    if (!response.Item) {
+      return null;
     }
     
-    console.error('Detalhes do erro geral:', errorDetails);
-    throw error;
+    return response.Item;
+  } catch (error: unknown) {
+    console.error('Erro ao buscar usuário por ID:', error);
+    if (error instanceof Error) {
+      throw new Error(`Erro ao buscar usuário: ${error.message}`);
+    } else {
+      throw new Error('Erro desconhecido ao buscar usuário');
+    }
   }
 }

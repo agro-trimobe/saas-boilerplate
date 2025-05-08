@@ -23,10 +23,8 @@ function ConfirmForm() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  // Efeito para verificar o email e redirecionar se necessário
   useEffect(() => {
     if (!email) {
-      console.log('Email não encontrado nos parâmetros');
       toast({
         title: "Erro",
         description: "Email não fornecido. Por favor, faça o registro novamente.",
@@ -35,7 +33,6 @@ function ConfirmForm() {
       router.replace('/auth/login');
       return;
     }
-    console.log('Email encontrado:', email);
   }, [email, router, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -73,7 +70,6 @@ function ConfirmForm() {
         });
       }
     } catch (error) {
-      console.error("Erro na confirmação:", error);
       setError("Erro ao confirmar código");
       toast({
         title: "Erro",

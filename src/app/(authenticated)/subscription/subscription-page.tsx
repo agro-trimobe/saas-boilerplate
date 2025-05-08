@@ -12,7 +12,7 @@ import {
   SubscriptionLayout,
   BreadcrumbNav,
   PlanSummary,
-  EnhancedPaymentForm,
+  SimplifiedPaymentForm,
   planFeatures,
   planInfo,
   TransitionWrapper,
@@ -99,7 +99,7 @@ export function SubscriptionPage({ userData }: SubscriptionPageProps) {
             
             <PlanSummary plan={selectedPlan} />
             
-            <EnhancedPaymentForm 
+            <SimplifiedPaymentForm 
               plan={selectedPlan}
               userData={userData}
               onComplete={handlePaymentComplete}

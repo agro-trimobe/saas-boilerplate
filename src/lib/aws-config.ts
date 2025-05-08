@@ -1,108 +1,82 @@
+/**
+ * AWS Configuration
+ * 
+ * Este arquivo configura os clientes AWS necessários para o funcionamento
+ * do sistema multi-tenant. Os serviços principais utilizados são:
+ * 
+ * - DynamoDB: Para armazenamento de dados estruturado com suporte a multi-tenant
+ * - S3: Para armazenamento de arquivos (opcional)
+ */
+
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { S3Client } from '@aws-sdk/client-s3';
 
-// Usar variáveis de ambiente sem prefixo NEXT_PUBLIC_
-const REGION = process.env.COGNITO_REGION || 'us-east-1';
-const ACCESS_KEY = process.env.ACCESS_KEY_ID_AWS || '';
-const SECRET_KEY = process.env.SECRET_ACCESS_KEY_AWS || '';
+// Configurações da AWS vindas das variáveis de ambiente
+const REGION = process.env.AWS_REGION || 'us-east-1';
+const ACCESS_KEY = process.env.AWS_ACCESS_KEY_ID || '';
+const SECRET_KEY = process.env.AWS_SECRET_ACCESS_KEY || '';
 
-// Verificar se as credenciais estão configuradas
+// Verificar configuração mínima
 if (!ACCESS_KEY || !SECRET_KEY) {
-  console.warn('Credenciais AWS não configuradas. Configure as variáveis de ambiente ACCESS_KEY_ID_AWS e SECRET_ACCESS_KEY_AWS.');
+  console.warn('⚠️ Credenciais AWS não configuradas. Configure AWS_ACCESS_KEY_ID e AWS_SECRET_ACCESS_KEY.');
 }
 
-// Adicionar logs para depuração
-console.log('[AWS Config] Inicializando configuração AWS...');
-console.log('[AWS Config] Região:', REGION);
-console.log('[AWS Config] Access Key ID configurado:', !!ACCESS_KEY);
-console.log('[AWS Config] Secret Access Key configurado:', !!SECRET_KEY);
-
-// Inicializar as variáveis fora do bloco try/catch
+// Inicializar clientes
 let dynamodb: DynamoDBDocumentClient;
 let s3: S3Client;
 
 try {
-  // Configurar o cliente DynamoDB
+  // Configurar DynamoDB com opções otimizadas para ambiente serverless
   const dynamoClient = new DynamoDBClient({
     region: REGION,
     credentials: {
       accessKeyId: ACCESS_KEY,
       secretAccessKey: SECRET_KEY,
     },
-    // Configurações específicas para DynamoDB em ambiente serverless
+    // Timeout otimizado para funções serverless
     requestHandler: {
       abortController: {
-        timeoutInMs: 5000, // 5 segundos de timeout
+        timeoutInMs: 5000,
       },
     },
   });
 
-  // Configurar o cliente DynamoDB Document
+  // Cliente com opções de serialização melhoradas
   dynamodb = DynamoDBDocumentClient.from(dynamoClient, {
     marshallOptions: {
-      // Configurações para melhorar a serialização/desserialização
-      convertEmptyValues: true, // Converte strings vazias para null
-      removeUndefinedValues: true, // Remove valores undefined
+      convertEmptyValues: true,
+      removeUndefinedValues: true,
     },
   });
 
-  // Configurar o cliente S3
+  // Configurar S3 para armazenamento de arquivos
   s3 = new S3Client({
     region: REGION,
     credentials: {
       accessKeyId: ACCESS_KEY,
       secretAccessKey: SECRET_KEY,
     },
-    // Configurações específicas para S3 em ambiente serverless
     requestHandler: {
       abortController: {
-        timeoutInMs: 10000, // 10 segundos de timeout para S3
+        timeoutInMs: 10000,
       },
     },
   });
 
-  console.log('[AWS Config] Clientes AWS inicializados com sucesso');
+  console.log('✅ Serviços AWS inicializados com sucesso');
 } catch (error: unknown) {
-  console.error('[AWS Config] Erro ao inicializar clientes AWS:', error);
+  console.error('❌ Erro ao inicializar serviços AWS:', error);
   
-  // Tratamento seguro para o erro com verificação de tipo
-  const errorDetails: Record<string, unknown> = {};
-  
-  if (error && typeof error === 'object') {
-    if ('name' in error && error.name) {
-      errorDetails.name = error.name;
-    }
-    
-    if ('message' in error && error.message) {
-      errorDetails.message = error.message;
-    }
-    
-    if ('code' in error && error.code) {
-      errorDetails.code = error.code;
-    }
-    
-    if ('$metadata' in error) {
-      errorDetails.$metadata = error.$metadata;
-    }
-  }
-  
-  console.error('[AWS Config] Detalhes do erro AWS:', errorDetails);
-  
-  // Criar clientes com configuração mínima para evitar erros em tempo de execução
-  // Isso permitirá que a aplicação seja carregada, mas as operações falharão
-  // com mensagens de erro mais claras
+  // Criar clientes mínimos para evitar erros de execução
   const dynamoClient = new DynamoDBClient({
     region: REGION,
   });
   
   dynamodb = DynamoDBDocumentClient.from(dynamoClient);
+  s3 = new S3Client({ region: REGION });
   
-  s3 = new S3Client({
-    region: REGION,
-  });
-  
-  console.warn('[AWS Config] Clientes AWS inicializados com configuração mínima devido a erros');
+  console.warn('⚠️ Serviços AWS inicializados com configuração mínima');
 }
 
 export { dynamodb, s3 };

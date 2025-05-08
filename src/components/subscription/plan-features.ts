@@ -12,39 +12,39 @@ export type PlanFeaturesMap = {
 
 export const planFeatures: PlanFeaturesMap = {
   'BASIC': [
-    { text: 'Centralização de dados de clientes e propriedades' },
-    { text: 'Organização completa de documentos e contratos' },
-    { text: 'Simulações de financiamento com cálculos precisos' },
-    { text: 'Dashboard com métricas de desempenho em tempo real' },
-    { text: 'Gestão completa de tarefas e compromissos' },
-    { text: 'Recursos de Inteligência Artificial', disabled: true }
+    { text: 'Acesso a todos os recursos básicos' },
+    { text: 'Até 5 usuários por conta' },
+    { text: 'Armazenamento de 10GB' },
+    { text: 'Dashboards e relatórios básicos' },
+    { text: 'Suporte por email' },
+    { text: 'Recursos premium avançados', disabled: true }
   ],
   'PREMIUM': [
-    { text: 'Todos os recursos do plano básico + IA exclusiva' },
-    { text: 'Assistente virtual especialista no Manual de Crédito Rural' },
-    { text: 'Extração automática de dados de documentos em segundos' },
-    { text: 'Recomendações inteligentes de linhas de crédito personalizadas' },
-    { text: 'Análise preditiva para aprovação de projetos' },
-    { text: 'Redução de 50% no tempo de elaboração de projetos', highlighted: true }
+    { text: 'Todos os recursos do plano básico' },
+    { text: 'Usuários ilimitados' },
+    { text: 'Armazenamento de 100GB' },
+    { text: 'Relatórios avançados e personalizados' },
+    { text: 'API com acesso completo' },
+    { text: 'Suporte prioritário 24/7', highlighted: true }
   ],
   'TRIAL': [
     { text: 'Acesso temporário a todas as funcionalidades' },
-    { text: 'Avaliação completa do sistema por tempo limitado' },
+    { text: 'Avaliação completa do sistema por 14 dias' },
     { text: 'Suporte durante o período de testes' }
   ]
 };
 
 export const planInfo = {
   'BASIC': {
-    title: 'Plano Básico: CRM',
-    description: 'Organize, acompanhe e feche mais projetos com metade do esforço'
+    title: 'Plano Inicial',
+    description: 'Ideal para startups e pequenos times'
   },
   'PREMIUM': {
-    title: 'Plano Premium: CRM + IA',
-    description: 'Dobre sua produtividade com IA que potencializa seus resultados'
+    title: 'Plano Profissional',
+    description: 'Recursos completos para empresas em crescimento'
   },
   'TRIAL': {
-    title: 'Plano Trial',
-    description: 'Avalie todas as funcionalidades por tempo limitado'
+    title: 'Avaliação Gratuita',
+    description: 'Experimente todas as funcionalidades por 14 dias'
   }
 };

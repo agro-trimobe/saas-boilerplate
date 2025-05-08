@@ -38,28 +38,38 @@ function LoginPageLoading() {
   );
 }
 
-// Componente principal de login que usa hooks de cliente
+/**
+ * Componente principal de login
+ * Gerenciamento de estado simplificado usando um único objeto de estado
+ */
 function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [isLogin, setIsLogin] = useState(searchParams.get("mode") !== "register");
-  const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isForgotPassword, setIsForgotPassword] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(
-    searchParams.get("error") || null
-  );
+  
+  // Consolidar múltiplos estados relacionados em um único objeto de estado
+  const [authState, setAuthState] = useState({
+    isLogin: searchParams.get("mode") !== "register",
+    showPassword: false,
+    isLoading: false,
+    isForgotPassword: false,
+    errorMessage: searchParams.get("error") || null
+  });
+  
+  // Função helper para atualizar apenas parte do estado
+  const updateAuthState = (updates: Partial<typeof authState>) => {
+    setAuthState(prevState => ({ ...prevState, ...updates }));
+  };
 
   // Esquema de validação com Zod
   const formSchema = z.object({
-    name: isLogin ? z.string().optional() : z.string().min(1, "Nome é obrigatório"),
+    name: authState.isLogin ? z.string().optional() : z.string().min(1, "Nome é obrigatório"),
     email: z.string().email("Email inválido"),
-    password: isForgotPassword ? z.string().optional() : z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
-    confirmPassword: isLogin || isForgotPassword
+    password: authState.isForgotPassword ? z.string().optional() : z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
+    confirmPassword: authState.isLogin || authState.isForgotPassword
       ? z.string().optional() 
       : z.string().min(1, "Confirmação de senha é obrigatória"),
   }).refine(data => {
-    if (!isLogin && !isForgotPassword && data.password !== data.confirmPassword) {
+    if (!authState.isLogin && !authState.isForgotPassword && data.password !== data.confirmPassword) {
       return false;
     }
     return true;
@@ -85,7 +95,6 @@ function LoginPageContent() {
     "NotAuthorizedException": "Email ou senha incorretos",
     "UserNotFoundException": "Usuário não encontrado",
     "TooManyRequestsException": "Muitas tentativas. Tente novamente mais tarde.",
-    "InvalidParameterException": "Dados inválidos. Verifique as informações fornecidas.",
     "default": "Ocorreu um erro na autenticação. Tente novamente."
   };
 
@@ -95,11 +104,10 @@ function LoginPageContent() {
   };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    setIsLoading(true);
-    setErrorMessage(null);
+    updateAuthState({ isLoading: true, errorMessage: null });
     
     try {
-      if (isForgotPassword) {
+      if (authState.isForgotPassword) {
         const response = await fetch("/api/auth/forgot-password", {
           method: "POST",
           headers: {
@@ -119,14 +127,14 @@ function LoginPageContent() {
           });
           router.push(`/auth/reset-password?email=${encodeURIComponent(values.email)}`);
         } else {
-          setErrorMessage(data.message || "Erro ao solicitar redefinição de senha");
+          updateAuthState({ errorMessage: data.message || "Erro ao solicitar redefinição de senha" });
           toast({
             title: "Erro",
             description: data.message || "Erro ao solicitar redefinição de senha",
             variant: "destructive",
           });
         }
-      } else if (isLogin) {
+      } else if (authState.isLogin) {
         const result = await signIn("credentials", {
           email: values.email,
           password: values.password,
@@ -137,7 +145,7 @@ function LoginPageContent() {
         if (result?.error) {
           console.error("Erro na autenticação:", result.error);
           const friendlyErrorMessage = getErrorMessage(result.error);
-          setErrorMessage(friendlyErrorMessage);
+          updateAuthState({ errorMessage: friendlyErrorMessage });
           
           toast({
             title: "Erro na autenticação",
@@ -150,15 +158,13 @@ function LoginPageContent() {
             router.push(`/auth/confirm?email=${encodeURIComponent(values.email)}`);
           }
         } else if (result?.ok) {
-          console.log("Login bem-sucedido, redirecionando para dashboard...");
-          
           toast({
             title: "Login bem-sucedido",
             description: "Redirecionando para o dashboard...",
           });
           
           // Limpar qualquer erro anterior
-          setErrorMessage(null);
+          updateAuthState({ errorMessage: null });
           // Forçar redirecionamento com replace para evitar problemas de histórico
           window.location.href = "/dashboard";
         }
@@ -178,8 +184,6 @@ function LoginPageContent() {
         const data = await response.json();
 
         if (response.ok) {
-          console.log('Registro bem-sucedido:', data);
-          
           toast({
             title: "Cadastro realizado",
             description: data.message || "Por favor, verifique seu email e insira o código de confirmação",
@@ -187,16 +191,13 @@ function LoginPageContent() {
           
           if (data.requiresConfirmation) {
             const confirmUrl = `/auth/confirm?email=${encodeURIComponent(values.email)}`;
-            console.log('Redirecionando para:', confirmUrl);
             
             // Usando replace em vez de push para garantir que o histórico seja limpo
             router.replace(confirmUrl);
-          } else {
-            console.log('Registro não requer confirmação');
           }
         } else {
           const errorMsg = data.error || "Erro ao criar conta";
-          setErrorMessage(errorMsg);
+          updateAuthState({ errorMessage: errorMsg });
           
           toast({
             title: "Erro no cadastro",
@@ -206,8 +207,7 @@ function LoginPageContent() {
         }
       }
     } catch (error) {
-      console.error("Erro inesperado:", error);
-      setErrorMessage("Ocorreu um erro inesperado. Tente novamente mais tarde.");
+      updateAuthState({ errorMessage: "Ocorreu um erro inesperado. Tente novamente mais tarde." });
       
       toast({
         title: "Erro",
@@ -215,9 +215,43 @@ function LoginPageContent() {
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      updateAuthState({ isLoading: false });
     }
   };
+
+  const passwordReset = async (email: string) => {
+    updateAuthState({ isLoading: true, errorMessage: null });
+    
+    try {
+      const response = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Ocorreu um erro ao processar sua solicitação');
+      }
+
+      toast({
+        title: "Email enviado!",
+        description: "Verifique sua caixa de entrada para redefinir sua senha.",
+      });
+
+      // Voltar para o formulário de login após enviar o email
+      updateAuthState({ isForgotPassword: false });
+    } catch (error) {
+      updateAuthState({ 
+        errorMessage: error instanceof Error ? error.message : 'Erro ao solicitar redefinição de senha'
+      });
+    } finally {
+      updateAuthState({ isLoading: false });
+    }
+  }
 
   return (
     <div className="container px-4 sm:px-6 flex min-h-screen w-full flex-col items-center justify-center py-8 bg-background">
@@ -225,12 +259,12 @@ function LoginPageContent() {
         <Card className="w-full shadow-lg border-border/50 mb-4 sm:mb-0">
           <CardHeader className="space-y-1 px-4 sm:px-6 pt-4 sm:pt-6">
             <CardTitle className="text-xl sm:text-2xl text-center">
-              {isForgotPassword ? "Recuperar Senha" : isLogin ? "Login" : "Criar Conta"}
+              {authState.isForgotPassword ? "Recuperar Senha" : authState.isLogin ? "Login" : "Criar Conta"}
             </CardTitle>
             <CardDescription className="text-center text-sm sm:text-base">
-              {isForgotPassword
+              {authState.isForgotPassword
                 ? "Digite seu email para receber as instruções de recuperação de senha"
-                : isLogin
+                : authState.isLogin
                 ? "Entre com seu email e senha"
                 : "Preencha os dados para criar sua conta"}
             </CardDescription>
@@ -238,14 +272,14 @@ function LoginPageContent() {
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <CardContent className="space-y-5 px-4 sm:px-6 py-4 sm:py-5">
-                {errorMessage && (
+                {authState.errorMessage && (
                   <Alert variant="destructive" className="mb-3 text-sm sm:text-base">
                     <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>{errorMessage}</AlertDescription>
+                    <AlertDescription>{authState.errorMessage}</AlertDescription>
                   </Alert>
                 )}
                 
-                {!isLogin && !isForgotPassword && (
+                {!authState.isLogin && !authState.isForgotPassword && (
                   <FormField
                     control={form.control}
                     name="name"
@@ -283,7 +317,7 @@ function LoginPageContent() {
                   )}
                 />
 
-                {!isForgotPassword && (
+                {!authState.isForgotPassword && (
                   <FormField
                     control={form.control}
                     name="password"
@@ -294,7 +328,7 @@ function LoginPageContent() {
                           <div className="relative">
                             <Input
                               {...field}
-                              type={showPassword ? "text" : "password"}
+                              type={authState.showPassword ? "text" : "password"}
                               placeholder="Digite sua senha"
                               className="h-10 sm:h-11 text-sm sm:text-base py-6 px-3"
                             />
@@ -303,9 +337,9 @@ function LoginPageContent() {
                               variant="ghost"
                               size="icon"
                               className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent touch-manipulation"
-                              onClick={() => setShowPassword(!showPassword)}
+                              onClick={() => updateAuthState({ showPassword: !authState.showPassword })}
                             >
-                              {showPassword ? (
+                              {authState.showPassword ? (
                                 <EyeOff className="h-4 w-4 text-muted-foreground" />
                               ) : (
                                 <Eye className="h-4 w-4 text-muted-foreground" />
@@ -319,7 +353,7 @@ function LoginPageContent() {
                   />
                 )}
 
-                {!isLogin && !isForgotPassword && (
+                {!authState.isLogin && !authState.isForgotPassword && (
                   <FormField
                     control={form.control}
                     name="confirmPassword"
@@ -345,20 +379,22 @@ function LoginPageContent() {
                 <Button
                   type="submit"
                   className="w-full bg-primary hover:bg-primary/90 py-2.5 sm:py-3 text-sm sm:text-base rounded-md"
-                  disabled={isLoading}
+                  disabled={authState.isLoading}
                 >
-                  {isLoading ? "Carregando..." : isForgotPassword ? "Enviar Email" : isLogin ? "Entrar" : "Cadastrar"}
+                  {authState.isLoading ? "Carregando..." : authState.isForgotPassword ? "Enviar Email" : authState.isLogin ? "Entrar" : "Cadastrar"}
                 </Button>
 
                 <div className="mt-4 sm:mt-5 text-center space-y-2 sm:space-y-3">
-                  {isLogin && !isForgotPassword && (
+                  {authState.isLogin && !authState.isForgotPassword && (
                     <Button
                       type="button"
                       variant="link"
                       className="text-xs sm:text-sm py-2 h-auto touch-manipulation"
                       onClick={() => {
-                        setIsForgotPassword(true);
-                        setErrorMessage(null);
+                        updateAuthState({
+                          isForgotPassword: true,
+                          errorMessage: null
+                        });
                         form.reset({ email: form.getValues("email") });
                       }}
                     >
@@ -366,14 +402,16 @@ function LoginPageContent() {
                     </Button>
                   )}
 
-                  {isForgotPassword && (
+                  {authState.isForgotPassword && (
                     <Button
                       type="button"
                       variant="link"
                       className="text-xs sm:text-sm py-2 h-auto touch-manipulation"
                       onClick={() => {
-                        setIsForgotPassword(false);
-                        setErrorMessage(null);
+                        updateAuthState({
+                          isForgotPassword: false,
+                          errorMessage: null
+                        });
                         form.reset({ email: form.getValues("email") });
                       }}
                     >
@@ -381,18 +419,20 @@ function LoginPageContent() {
                     </Button>
                   )}
 
-                  {!isForgotPassword && (
+                  {!authState.isForgotPassword && (
                     <Button
                       type="button"
                       variant="link"
                       className="text-xs sm:text-sm py-2 h-auto touch-manipulation"
                       onClick={() => {
-                        setIsLogin(!isLogin);
-                        setErrorMessage(null);
+                        updateAuthState({
+                          isLogin: !authState.isLogin,
+                          errorMessage: null
+                        });
                         form.reset();
                       }}
                     >
-                      {isLogin ? "Não tem uma conta? Cadastre-se" : "Já tem uma conta? Entre"}
+                      {authState.isLogin ? "Não tem uma conta? Cadastre-se" : "Já tem uma conta? Entre"}
                     </Button>
                   )}
                 </div>

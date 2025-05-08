@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "@/styles/calendar.css";
-import "@/styles/map.css";
 import Providers from "@/components/providers";
 
 const geistSans = Geist({
@@ -16,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Trimobe",
-  description: "Aplicação de Crédito Rural",
+  title: "SaaS Boilerplate",
+  description: "Aplicação SaaS com assinatura e autenticação",
   icons: {
     icon: [
       { url: "/icons/favicon.svg" },

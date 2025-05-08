@@ -3,7 +3,7 @@
 import { CheckIcon } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { formatarMoeda } from '@/lib/formatters';
+import { formatCurrency } from '@/lib/formatters';
 import { SubscriptionPlan } from '@/lib/types/subscription';
 import { cn } from '@/lib/utils';
 
@@ -47,7 +47,7 @@ export function PlanCard({
         <CardTitle className="text-2xl">{title}</CardTitle>
         <CardDescription className="text-base mt-1.5">{description}</CardDescription>
         <div className="mt-4 flex items-baseline">
-          <span className="text-3xl font-bold">{formatarMoeda(price)}</span>
+          <span className="text-3xl font-bold">{formatCurrency(price)}</span>
           <span className="text-muted-foreground ml-1.5">/mês</span>
         </div>
       </CardHeader>
@@ -81,7 +81,7 @@ export function PlanCard({
           variant={recommended ? "default" : "outline"}
           onClick={() => onSelect(plan)}
         >
-          Assinar {title.split(':')[0]}
+          Escolher plano
         </Button>
       </CardFooter>
     </Card>

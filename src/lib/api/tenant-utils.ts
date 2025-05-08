@@ -3,17 +3,32 @@ import { authOptions } from '@/app/api/auth/auth-options';
 import { useSession } from 'next-auth/react';
 
 /**
- * Função auxiliar para obter o tenant ID da sessão do usuário autenticado no lado do servidor
- * @returns Promise com o tenant ID do usuário
- * @throws Error se o tenant ID não for encontrado na sessão
+ * Sistema Multi-tenant Simplificado
+ * 
+ * Este módulo fornece funções para obter o ID do tenant (organização)
+ * atual tanto no lado do servidor quanto no lado do cliente.
+ * 
+ * Casos de uso:
+ * - Componentes de página para restringir acesso a dados de um tenant
+ * - APIs para garantir que usuários só acessem dados do seu tenant
+ * - Hooks de React para componentes que precisam do tenant ID
+ */
+
+/**
+ * Obtém o tenant ID da sessão no lado do servidor
+ * Uso típico: páginas e rotas de API no lado do servidor
+ * @returns Promise com o tenant ID do usuário autenticado
+ * @throws Error se o tenant ID não for encontrado ou houver erro na sessão
  */
 export async function getServerTenantId(): Promise<string> {
   try {
     const session = await getServerSession(authOptions);
+    
     if (!session?.user?.tenantId) {
       console.error('Tenant ID não encontrado na sessão');
       throw new Error('Tenant ID não encontrado na sessão');
     }
+    
     return session.user.tenantId;
   } catch (error) {
     console.error('Erro ao obter tenant ID no servidor:', error);
@@ -22,38 +37,38 @@ export async function getServerTenantId(): Promise<string> {
 }
 
 /**
- * Função auxiliar para obter o tenant ID da sessão do usuário autenticado
- * Esta função funciona tanto no lado do cliente quanto no lado do servidor
+ * Obtém o tenant ID da sessão do usuário
+ * Funciona tanto no lado do cliente quanto no servidor
  * @returns Promise com o tenant ID do usuário
- * @throws Error se o tenant ID não for encontrado na sessão
+ * @throws Error se o tenant ID não for encontrado
  */
 export async function getTenantId(): Promise<string> {
-  // Verificar se estamos no lado do servidor
+  // No servidor, usa diretamente a sessão do servidor
   if (typeof window === 'undefined') {
     return getServerTenantId();
   }
   
-  // No lado do cliente, fazemos uma requisição à API
+  // No cliente, busca via API
   try {
     const response = await fetch('/api/tenant');
     const data = await response.json();
     
     if (data.status === 'error') {
-      console.error('Erro ao obter tenant ID do cliente:', data.message);
+      console.error('Erro ao obter tenant ID:', data.message);
       throw new Error(data.message);
     }
     
     return data.tenantId;
   } catch (error) {
-    console.error('Erro ao obter tenant ID do cliente:', error);
+    console.error('Erro ao obter tenant ID:', error);
     throw error;
   }
 }
 
 /**
- * Hook para obter o tenant ID no lado do cliente usando o hook useSession
- * Útil para componentes React que precisam do tenant ID
- * @returns O tenant ID do usuário ou null se não estiver disponível
+ * Hook React para obter o tenant ID no cliente
+ * Ideal para uso em componentes React
+ * @returns O tenant ID do usuário ou null se não estiver autenticado
  */
 export function useClientTenantId(): string | null {
   const { data: session } = useSession();

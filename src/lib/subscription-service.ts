@@ -1,19 +1,27 @@
 import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { dynamodb } from './aws-config';
 import { SubscriptionData, SubscriptionPlan, SubscriptionStatus } from './types/subscription';
-import { asaasApi, createCustomer, createSubscription, ASAAS_TRIAL_PERIOD_DAYS, ASAAS_SUBSCRIPTION_BASIC_VALUE, ASAAS_SUBSCRIPTION_PREMIUM_VALUE } from './asaas-config';
+import { asaasApi, createCustomer, createSubscription, cancelSubscription, ASAAS_TRIAL_PERIOD_DAYS, ASAAS_SUBSCRIPTION_BASIC_VALUE, ASAAS_SUBSCRIPTION_PREMIUM_VALUE } from './asaas-config';
+
+// Constantes para períodos de teste e valores de assinatura
+const TRIAL_PERIOD_DAYS = 14; // Período de teste padrão de 14 dias
+
+// Nome da tabela para armazenar usuários e assinaturas
+const USERS_TABLE = 'Users';
 
 /**
  * Inicializa a assinatura para um novo usuário com período de teste
+ * @param tenantId ID do tenant (organização)
+ * @param cognitoId ID do usuário no Cognito
+ * @returns Dados da assinatura de teste criada
  */
-export async function initializeTrialSubscription(tenantId: string, cognitoId: string) {
-  console.log('[Assinatura] Inicializando período de teste para:', { tenantId, cognitoId });
-  
+export async function initializeTrialSubscription(tenantId: string, cognitoId: string): Promise<SubscriptionData> {
   try {
     const now = new Date();
     const trialEndDate = new Date();
-    trialEndDate.setDate(now.getDate() + ASAAS_TRIAL_PERIOD_DAYS);
+    trialEndDate.setDate(now.getDate() + TRIAL_PERIOD_DAYS);
     
+    // Dados mínimos necessários para a assinatura de teste
     const subscriptionData: SubscriptionData = {
       status: 'TRIAL',
       plan: 'TRIAL',
@@ -23,17 +31,9 @@ export async function initializeTrialSubscription(tenantId: string, cognitoId: s
     };
     
     await updateUserSubscription(tenantId, cognitoId, subscriptionData);
-    console.log('[Assinatura] Período de teste inicializado com sucesso:', { 
-      tenantId, 
-      cognitoId, 
-      trialEndDate: trialEndDate.toISOString() 
-    });
     
     return subscriptionData;
   } catch (error) {
-    console.error('[Assinatura] Erro ao inicializar período de teste:', error);
-    
-    // Tratamento seguro para o erro com verificação de tipo
     if (error instanceof Error) {
       throw new Error(`Erro ao inicializar período de teste: ${error.message}`);
     } else {
@@ -44,13 +44,15 @@ export async function initializeTrialSubscription(tenantId: string, cognitoId: s
 
 /**
  * Atualiza as informações de assinatura do usuário
+ * @param tenantId ID do tenant (organização)
+ * @param cognitoId ID do usuário no Cognito
+ * @param subscriptionData Dados da assinatura para atualizar
+ * @returns Dados do usuário atualizados
  */
 export async function updateUserSubscription(tenantId: string, cognitoId: string, subscriptionData: SubscriptionData) {
-  console.log('[Assinatura] Atualizando dados de assinatura para:', { tenantId, cognitoId });
-  
   try {
     const command = new UpdateCommand({
-      TableName: 'Users',
+      TableName: USERS_TABLE,
       Key: {
         PK: `TENANT#${tenantId}`,
         SK: `USER#${cognitoId}`,
@@ -64,17 +66,8 @@ export async function updateUserSubscription(tenantId: string, cognitoId: string
     });
     
     const result = await dynamodb.send(command);
-    console.log('[Assinatura] Assinatura atualizada com sucesso:', {
-      tenantId,
-      cognitoId,
-      subscription: result.Attributes?.subscription,
-    });
-    
     return result.Attributes;
   } catch (error) {
-    console.error('[Assinatura] Erro ao atualizar assinatura:', error);
-    
-    // Tratamento seguro para o erro com verificação de tipo
     if (error instanceof Error) {
       throw new Error(`Erro ao atualizar assinatura: ${error.message}`);
     } else {
@@ -85,13 +78,14 @@ export async function updateUserSubscription(tenantId: string, cognitoId: string
 
 /**
  * Verifica se o usuário tem uma assinatura ativa
+ * @param tenantId ID do tenant (organização)
+ * @param cognitoId ID do usuário no Cognito
+ * @returns Dados da assinatura ou null se não existir
  */
 export async function checkUserSubscription(tenantId: string, cognitoId: string): Promise<SubscriptionData | null> {
-  console.log('[Assinatura] Verificando assinatura para:', { tenantId, cognitoId });
-  
   try {
     const command = new GetCommand({
-      TableName: 'Users',
+      TableName: USERS_TABLE,
       Key: {
         PK: `TENANT#${tenantId}`,
         SK: `USER#${cognitoId}`,
@@ -101,48 +95,35 @@ export async function checkUserSubscription(tenantId: string, cognitoId: string)
     const result = await dynamodb.send(command);
     
     if (!result.Item) {
-      console.log('[Assinatura] Usuário não encontrado:', { tenantId, cognitoId });
       return null;
     }
     
-    const subscriptionData = result.Item.subscription as SubscriptionData | undefined;
-    
-    if (!subscriptionData) {
-      console.log('[Assinatura] Usuário sem dados de assinatura:', { tenantId, cognitoId });
+    const subscription = result.Item.subscription as SubscriptionData;
+    if (!subscription) {
       return null;
     }
+
+    // Verifica se a assinatura está válida
+    const now = new Date();
+    const expiresAt = subscription.expiresAt ? new Date(subscription.expiresAt) : null;
     
-    console.log('[Assinatura] Dados de assinatura encontrados:', {
-      tenantId,
-      cognitoId,
-      status: subscriptionData.status,
-      plan: subscriptionData.plan,
-      expiresAt: subscriptionData.expiresAt,
-    });
+    // Se não houver data de expiração, consideramos válida
+    if (!expiresAt) {
+      subscription.status = 'ACTIVE';
+      return subscription;
+    }
     
-    // Verificar se é necessário atualizar o status da assinatura
-    if (subscriptionData.status === 'TRIAL') {
-      const trialEndDate = new Date(subscriptionData.trialEndsAt);
-      const now = new Date();
-      
-      if (trialEndDate < now) {
-        console.log('[Assinatura] Período de teste expirado, atualizando status:', {
-          tenantId,
-          cognitoId,
-          trialEndsAt: subscriptionData.trialEndsAt,
-        });
-        
-        // Atualizar status para TRIAL_ENDED
-        subscriptionData.status = 'TRIAL_ENDED';
-        await updateUserSubscription(tenantId, cognitoId, subscriptionData);
+    // Atualizar status se estiver expirado
+    if (now > expiresAt) {
+      if (subscription.status === 'TRIAL') {
+        subscription.status = 'TRIAL_ENDED';
+      } else if (subscription.status === 'ACTIVE') {
+        subscription.status = 'INACTIVE';
       }
     }
     
-    return subscriptionData;
+    return subscription;
   } catch (error) {
-    console.error('[Assinatura] Erro ao verificar assinatura:', error);
-    
-    // Tratamento seguro para o erro com verificação de tipo
     if (error instanceof Error) {
       throw new Error(`Erro ao verificar assinatura: ${error.message}`);
     } else {
@@ -153,6 +134,8 @@ export async function checkUserSubscription(tenantId: string, cognitoId: string)
 
 /**
  * Calcula o preço do plano com base no tipo
+ * @param plan Tipo do plano
+ * @returns Valor do plano em reais
  */
 export function getPlanPrice(plan: SubscriptionPlan): number {
   switch (plan) {
@@ -167,6 +150,11 @@ export function getPlanPrice(plan: SubscriptionPlan): number {
 
 /**
  * Processa a criação de uma nova assinatura
+ * @param tenantId ID do tenant (organização)
+ * @param cognitoId ID do usuário no Cognito
+ * @param userData Dados do usuário para criar cliente na Asaas
+ * @param paymentData Dados de pagamento e plano escolhido
+ * @returns Dados da assinatura criada
  */
 export async function createUserSubscription(
   tenantId: string,
@@ -193,15 +181,8 @@ export async function createUserSubscription(
     remoteIp: string;
   }
 ) {
-  console.log('[Assinatura] Criando nova assinatura:', { 
-    tenantId, 
-    cognitoId, 
-    email: userData.email,
-    plan: paymentData.plan 
-  });
-  
   try {
-    // 1. Criar ou recuperar cliente na Asaas
+    // 1. Criar cliente na Asaas
     const customer = await createCustomer(
       userData.name,
       userData.cpfCnpj,
@@ -212,17 +193,9 @@ export async function createUserSubscription(
       throw new Error('Falha ao criar cliente na Asaas');
     }
     
-    console.log('[Assinatura] Cliente criado/recuperado na Asaas:', { 
-      customerId: customer.id,
-      name: customer.name
-    });
-    
-    // 2. Determinar a data do próximo pagamento (primeira cobrança imediata)
-    const nextDueDate = new Date();
-    // Não adiciona o período de teste, para que a cobrança seja imediata
-    
-    // 3. Criar assinatura na Asaas
+    // 2. Criar assinatura na Asaas
     const planValue = getPlanPrice(paymentData.plan);
+    const nextDueDate = new Date();
     
     const subscription = await createSubscription({
       customer: customer.id,
@@ -230,7 +203,7 @@ export async function createUserSubscription(
       value: planValue,
       nextDueDate: nextDueDate.toISOString().split('T')[0], // Formato YYYY-MM-DD
       cycle: 'MONTHLY',
-      description: `Plano ${paymentData.plan === 'BASIC' ? 'Básico' : 'Premium'} CREDITO RURAL`,
+      description: `Plano ${paymentData.plan === 'BASIC' ? 'Básico' : 'Premium'} SaaS`,
       creditCard: {
         holderName: paymentData.creditCard.holderName,
         number: paymentData.creditCard.number,
@@ -253,13 +226,7 @@ export async function createUserSubscription(
       throw new Error('Falha ao criar assinatura na Asaas');
     }
     
-    console.log('[Assinatura] Assinatura criada na Asaas:', { 
-      subscriptionId: subscription.id,
-      status: subscription.status,
-      value: subscription.value
-    });
-    
-    // 4. Atualizar informações de assinatura do usuário
+    // 3. Salvar informações essenciais da assinatura
     const now = new Date();
     const expiresAt = new Date();
     expiresAt.setMonth(expiresAt.getMonth() + 1); // Expira em 1 mês
@@ -269,7 +236,7 @@ export async function createUserSubscription(
       plan: paymentData.plan,
       createdAt: now.toISOString(),
       expiresAt: expiresAt.toISOString(),
-      trialEndsAt: now.toISOString(), // Trial encerrado ao criar assinatura paga
+      trialEndsAt: now.toISOString(),
       asaasCustomerId: customer.id,
       asaasSubscriptionId: subscription.id,
       lastPaymentDate: now.toISOString(),
@@ -278,21 +245,11 @@ export async function createUserSubscription(
     
     await updateUserSubscription(tenantId, cognitoId, subscriptionData);
     
-    console.log('[Assinatura] Assinatura atualizada com sucesso no DynamoDB:', { 
-      tenantId, 
-      cognitoId, 
-      plan: paymentData.plan,
-      status: 'ACTIVE'
-    });
-    
     return { 
       subscription: subscriptionData,
       asaasSubscription: subscription
     };
   } catch (error) {
-    console.error('[Assinatura] Erro ao criar assinatura:', error);
-    
-    // Tratamento seguro para o erro com verificação de tipo
     if (error instanceof Error) {
       throw new Error(`Erro ao criar assinatura: ${error.message}`);
     } else {
@@ -303,58 +260,110 @@ export async function createUserSubscription(
 
 /**
  * Atualiza o plano de assinatura do usuário
+ * @param tenantId ID do tenant (organização)
+ * @param cognitoId ID do usuário no Cognito
+ * @param newPlan Novo plano a ser ativado
+ * @returns Dados da assinatura atualizada
  */
 export async function updateSubscriptionPlan(
   tenantId: string,
   cognitoId: string,
   newPlan: SubscriptionPlan
-) {
-  console.log('[Assinatura] Atualizando plano de assinatura:', { 
-    tenantId, 
-    cognitoId, 
-    newPlan 
-  });
-  
+): Promise<SubscriptionData> {
   try {
-    // 1. Obter dados atuais da assinatura
+    // 1. Verificar assinatura atual
     const subscriptionData = await checkUserSubscription(tenantId, cognitoId);
     
     if (!subscriptionData) {
-      throw new Error('Usuário não possui assinatura');
+      throw new Error('Usuário não possui assinatura para atualizar');
     }
     
     if (!subscriptionData.asaasSubscriptionId) {
-      throw new Error('Assinatura não possui ID na Asaas');
+      throw new Error('Assinatura não possui ID no Asaas');
     }
     
-    // 2. Atualizar na Asaas
-    const planValue = getPlanPrice(newPlan);
+    if (subscriptionData.plan === newPlan) {
+      return subscriptionData; // Plano já é o mesmo
+    }
     
-    await asaasApi.post(`/subscriptions/${subscriptionData.asaasSubscriptionId}`, {
-      value: planValue,
-      description: `Plano ${newPlan === 'BASIC' ? 'Básico' : 'Premium'} CREDITO RURAL`,
-    });
+    // 2. Atualizar assinatura no Asaas
+    const newPlanValue = getPlanPrice(newPlan);
     
-    // 3. Atualizar no DynamoDB
-    subscriptionData.plan = newPlan;
-    await updateUserSubscription(tenantId, cognitoId, subscriptionData);
+    try {
+      await asaasApi.post(
+        `/subscriptions/${subscriptionData.asaasSubscriptionId}`,
+        {
+          value: newPlanValue,
+          description: `Plano ${newPlan === 'BASIC' ? 'Básico' : 'Premium'} SaaS`,
+        }
+      );
+    } catch (asaasError) {
+      // Se falhar no Asaas, continuamos para atualizar localmente
+      // Isso permite que a assinatura seja sincronizada mais tarde
+    }
     
-    console.log('[Assinatura] Plano atualizado com sucesso:', { 
-      tenantId, 
-      cognitoId, 
-      newPlan,
-      asaasSubscriptionId: subscriptionData.asaasSubscriptionId
-    });
+    // 3. Atualizar no banco de dados local
+    const updatedSubscription: SubscriptionData = {
+      ...subscriptionData,
+      plan: newPlan,
+      updatedAt: new Date().toISOString(),
+    };
     
-    return subscriptionData;
+    await updateUserSubscription(tenantId, cognitoId, updatedSubscription);
+    
+    return updatedSubscription;
   } catch (error) {
-    console.error('[Assinatura] Erro ao atualizar plano:', error);
-    
-    // Tratamento seguro para o erro com verificação de tipo
     if (error instanceof Error) {
       throw new Error(`Erro ao atualizar plano: ${error.message}`);
     } else {
       throw new Error('Erro desconhecido ao atualizar plano');
+    }
+  }
+}
+
+/**
+ * Cancela a assinatura de um usuário
+ * @param tenantId ID do tenant (organização)
+ * @param cognitoId ID do usuário no Cognito
+ * @returns Dados da assinatura cancelada
+ */
+export async function cancelUserSubscription(tenantId: string, cognitoId: string): Promise<SubscriptionData> {
+  try {
+    // 1. Verificar assinatura atual
+    const subscriptionData = await checkUserSubscription(tenantId, cognitoId);
+    
+    if (!subscriptionData) {
+      throw new Error('Usuário não possui assinatura para cancelar');
+    }
+    
+    if (!subscriptionData.asaasSubscriptionId) {
+      throw new Error('Assinatura não possui ID no Asaas');
+    }
+    
+    // 2. Cancelar assinatura no Asaas
+    try {
+      await cancelSubscription(subscriptionData.asaasSubscriptionId);
+    } catch (asaasError) {
+      // Se falhar no Asaas, continuamos para atualizar localmente
+      // Isso permite que a assinatura seja sincronizada mais tarde
+    }
+    
+    // 3. Atualizar status no banco de dados local
+    const updatedSubscription: SubscriptionData = {
+      ...subscriptionData,
+      status: 'CANCELLED',
+      updatedAt: new Date().toISOString(),
+      cancelledAt: new Date().toISOString(),
+    };
+    
+    await updateUserSubscription(tenantId, cognitoId, updatedSubscription);
+    
+    return updatedSubscription;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Erro ao cancelar assinatura: ${error.message}`);
+    } else {
+      throw new Error('Erro desconhecido ao cancelar assinatura');
     }
   }
 }

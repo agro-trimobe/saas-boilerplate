@@ -15,11 +15,11 @@ export function SubscriptionHeader({ trialEnded = true, step = 'select-plan' }: 
       {step === 'select-plan' ? (
         trialEnded ? (
           <p className="mt-1 text-sm text-muted-foreground max-w-2xl mx-auto">
-            Seu período de avaliação gratuito terminou. Escolha um dos planos abaixo para continuar utilizando o sistema.
+            Seu período de avaliação gratuito terminou. Escolha um dos planos abaixo para continuar utilizando a plataforma.
           </p>
         ) : (
           <p className="mt-1 text-sm text-muted-foreground max-w-2xl mx-auto">
-            Assine um plano para ter acesso a todas as funcionalidades do sistema.
+            Escolha o plano ideal para as necessidades do seu negócio e obtenha acesso a todas as funcionalidades.
           </p>
         )
       ) : (

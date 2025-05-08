@@ -1,7 +1,0 @@
-export * from './propriedade-header'
-export * from './propriedade-info-cards'
-export * from './propriedade-mapa'
-export * from './propriedade-projetos'
-export * from './cliente-mapa'
-export * from './map-components-propriedade'
-export * from './mapa-propriedade'

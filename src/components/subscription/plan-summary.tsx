@@ -3,16 +3,18 @@
 import { CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { formatarMoeda } from '@/lib/formatters';
+import { formatCurrency } from '@/lib/formatters';
 import { SubscriptionPlan } from '@/lib/types/subscription';
-import { ASAAS_SUBSCRIPTION_BASIC_VALUE, ASAAS_SUBSCRIPTION_PREMIUM_VALUE } from '@/lib/asaas-config';
+// Valores padrão para demonstração
+const SUBSCRIPTION_BASIC_VALUE = 49.90;
+const SUBSCRIPTION_PREMIUM_VALUE = 99.90;
 
 interface PlanSummaryProps {
   plan: SubscriptionPlan;
 }
 
 export function PlanSummary({ plan }: PlanSummaryProps) {
-  const planValue = plan === 'BASIC' ? ASAAS_SUBSCRIPTION_BASIC_VALUE : ASAAS_SUBSCRIPTION_PREMIUM_VALUE;
+  const planValue = plan === 'BASIC' ? SUBSCRIPTION_BASIC_VALUE : SUBSCRIPTION_PREMIUM_VALUE;
   const planName = plan === 'BASIC' ? 'Básico' : 'Premium';
   
   return (
@@ -30,7 +32,7 @@ export function PlanSummary({ plan }: PlanSummaryProps) {
             <p className="text-sm text-muted-foreground">Cobrança mensal</p>
           </div>
           <Badge variant="outline" className="text-lg font-semibold">
-            {formatarMoeda(planValue)}<span className="text-xs font-normal">/mês</span>
+            {formatCurrency(planValue)}<span className="text-xs font-normal">/mês</span>
           </Badge>
         </div>
       </CardContent>
