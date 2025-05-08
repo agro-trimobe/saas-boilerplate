@@ -30,48 +30,90 @@ function UpgradeSuccessMessage({ plan, onContinue }: UpgradeSuccessMessageProps)
   
   // Função de redirecionamento
   const redirectToDashboard = () => {
-    if (onContinue) {
-      onContinue();
-    } else {
-      router.push('/dashboard');
-    }
+    // Evitar chamadas durante a renderização definindo um flag
+    setRedirecting(true);
+    
+    // Usar setTimeout para garantir que a execução ocorra após a renderização
+    setTimeout(() => {
+      if (onContinue) {
+        onContinue();
+      } else {
+        router.push('/dashboard');
+      }
+    }, 10);
   };
   
   // Atualizar dados da assinatura imediatamente ao entrar na tela de sucesso
   useEffect(() => {
-    // Atualizar localmente
-    refreshSubscription();
+    // Usar setTimeout para garantir que a atualização não ocorra durante a renderização
+    const timeoutId = setTimeout(() => {
+      try {
+        // Atualizar localmente os dados da assinatura
+        refreshSubscription();
+        console.log('[Assinatura] Dados de assinatura atualizados após concluir assinatura');
+      } catch (err) {
+        // Apenas registrar erros silenciosamente para não afetar a experiência do usuário
+        console.warn('[Assinatura] Erro ao atualizar dados da assinatura:', err);
+      }
+    }, 500);
     
-    // Disparar evento global para atualizar assinatura em todos os componentes
-    const refreshEvent = new CustomEvent('subscription:refresh', {
-      detail: { source: 'UpgradeSuccessMessage' }
-    });
-    window.dispatchEvent(refreshEvent);
-    
-    console.log('[Assinatura] Evento de atualização disparado após concluir assinatura');
-  }, [refreshSubscription]);
+    return () => clearTimeout(timeoutId);
+  }, [refreshSubscription]); // Manter a dependência
   
   // Efeito para redirecionamento automático com contagem regressiva
+  // Usar uma bandeira para garantir que a contagem só inicie uma vez
+  const [countdownStarted, setCountdownStarted] = useState(false);
+
+  // Efeito para iniciar a contagem apenas quando renderizado corretamente
   useEffect(() => {
-    // Se já estiver redirecionando, não fazer nada
-    if (redirecting) return;
+    // Pequeno atraso para garantir que este é uma montagem real, não um render parcial
+    const startupDelay = setTimeout(() => {
+      setCountdownStarted(true);
+    }, 1000);
+    
+    return () => clearTimeout(startupDelay);
+  }, []);
+  
+  // Contagem regressiva real - executada apenas quando countdownStarted for true
+  useEffect(() => {
+    // Não iniciar a contagem até que o sinalizador seja ativado
+    if (!countdownStarted || redirecting) return;
+    
+    console.log('[Assinatura] Iniciando contagem regressiva para redirecionamento');
+    
+    let timeoutId: NodeJS.Timeout | null = null;
     
     // Configurar intervalo para contagem regressiva
     const interval = setInterval(() => {
       setCountdown((prev) => {
+        // Quando atingir 1, preparar para redirecionar no próximo ciclo
         if (prev <= 1) {
           clearInterval(interval);
           setRedirecting(true);
-          redirectToDashboard();
+          
+          // Usar setTimeout para evitar atualizações durante a renderização
+          timeoutId = setTimeout(() => {
+            if (onContinue) {
+              onContinue();
+            } else {
+              router.push('/dashboard');
+            }
+          }, 500); // Aumentado para 500ms para maior segurança
+          
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
     
-    // Limpar intervalo ao desmontar componente
-    return () => clearInterval(interval);
-  }, [redirecting, redirectToDashboard]);  // Executar apenas uma vez na montagem do componente
+    // Limpar intervalo e timeout ao desmontar componente
+    return () => {
+      clearInterval(interval);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [countdownStarted, redirecting, onContinue, router]); // Dependências corretas
   
   return (
     <div className="flex min-h-[80vh] items-center justify-center">

@@ -1,21 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { SubscriptionData, isSubscriptionActive, hasPremiumAccess } from '@/lib/types/subscription';
-import { useSuspenseQuery } from './use-suspense-query';
-
-/**
- * Evento personalizado para atualizar assinatura em todos os componentes
- * Permite sincronizar o estado da assinatura em diferentes partes da aplicação
- */
-type SubscriptionRefreshEvent = CustomEvent<{ source: string }>;
-
-// Declaração para TypeScript
-declare global {
-  interface WindowEventMap {
-    'subscription:refresh': SubscriptionRefreshEvent;
-  }
-}
 
 /**
  * Interface que define as informações de assinatura retornadas pelo hook
@@ -31,90 +17,78 @@ export interface SubscriptionInfo {
 
 /**
  * Hook para gerenciar o estado da assinatura do usuário
- * Centraliza a lógica de verificação e atualização da assinatura
- * Utiliza suspense para melhor experiência de carregamento
+ * Versão simplificada para evitar loops infinitos
  */
 export function useSubscription(options?: { suspense?: boolean }): SubscriptionInfo {
-  // Estado para controlar atualizações forçadas
-  const [refreshCounter, setRefreshCounter] = useState(0);
+  // Estados do hook
+  const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
   
-  // Função para buscar dados da assinatura
-  const fetchSubscription = useCallback(async (): Promise<SubscriptionData> => {
-    // Adicionar parâmetro para evitar cache
-    const cacheParam = new Date().getTime();
-    const response = await fetch(`/api/subscription?_=${cacheParam}&refreshToken=${refreshCounter}`);
-    
-    if (!response.ok) {
-      throw new Error(`Erro ao verificar assinatura: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    return data.subscription;
-  }, [refreshCounter]);
+  // Referência para controlar chamadas simultâneas
+  const fetchingRef = useRef<boolean>(false);
+  const lastFetchRef = useRef<number>(0);
   
-  // Usar o hook de suspense para buscar dados
-  const { 
-    data: subscription, 
-    error, 
-    status,
-    refetch 
-  } = useSuspenseQuery<SubscriptionData>(
-    fetchSubscription,
-    {
-      suspense: options?.suspense !== false,
-      retry: 2,
-      cacheKey: `subscription-${refreshCounter}`,
-      onError: (error) => {
-        console.error('Erro ao buscar assinatura:', error);
-      }
-    }
-  );
-  
-  // Função para atualizar os dados da assinatura
-  const refreshSubscription = useCallback(() => {
-    // Atualiza o contador para forçar refetch
-    setRefreshCounter(prev => prev + 1);
+  // Função para buscar dados da assinatura de forma simplificada
+  const fetchSubscriptionData = useCallback(async (force = false): Promise<void> => {
+    // Evitar múltiplas solicitações simultâneas
+    if (fetchingRef.current) return;
     
-    // Dispara evento para sincronizar outros componentes
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('subscription:refresh', {
-        detail: { source: 'hook' }
-      }));
-    }
+    // Verificar limite de tempo entre chamadas (3 segundos)
+    const now = Date.now();
+    const minInterval = 3000; 
+    if (!force && (now - lastFetchRef.current) < minInterval) return;
     
-    // Refetch dos dados
-    refetch(true);
-  }, [refetch]);
-  
-  // Sincronizar estado entre componentes via eventos personalizados
-  useEffect(() => {
-    const handleRefreshEvent = (event: SubscriptionRefreshEvent) => {
-      // Evitar loop infinito, só atualiza se o evento não veio deste hook
-      if (event.detail.source !== 'hook') {
-        refetch(true);
-      }
-    };
-    
-    if (typeof window !== 'undefined') {
-      window.addEventListener('subscription:refresh', handleRefreshEvent);
+    try {
+      // Marcar início da busca e atualizar timestamp
+      fetchingRef.current = true;
+      lastFetchRef.current = now;
+      setIsLoading(true);
       
-      return () => {
-        window.removeEventListener('subscription:refresh', handleRefreshEvent);
-      };
+      // Parâmetro para evitar cache
+      const cacheParam = new Date().getTime();
+      const response = await fetch(`/api/subscription?_=${cacheParam}`);
+      
+      if (!response.ok) {
+        throw new Error(`Erro ao verificar assinatura: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      setSubscription(data.subscription);
+      setError(null);
+    } catch (err) {
+      console.error('Erro ao buscar dados de assinatura:', err);
+      setError(err instanceof Error ? err.message : 'Erro ao buscar assinatura');
+    } finally {
+      setIsLoading(false);
+      fetchingRef.current = false;
     }
-  }, [refetch]);
+  }, []);
+  
+  // Carregamento inicial dos dados
+  useEffect(() => {
+    // Buscar dados na montagem do componente
+    fetchSubscriptionData();
+    
+    // Não adicionamos dependências para evitar múltiplas chamadas
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  
+  // Função para forçar atualização dos dados
+  const refreshSubscription = useCallback(() => {
+    fetchSubscriptionData(true);
+  }, [fetchSubscriptionData]);
   
   // Calcular estados derivados
   const isActive = subscription ? isSubscriptionActive(subscription) : false;
   const isPremium = subscription ? hasPremiumAccess(subscription) : false;
-  const isLoading = status === 'loading';
 
   return {
     isLoading,
     subscription,
     isActive,
     isPremium,
-    error: error?.message || null,
+    error,
     refreshSubscription
   };
 }

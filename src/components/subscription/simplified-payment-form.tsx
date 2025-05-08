@@ -71,9 +71,19 @@ export function SimplifiedPaymentForm({ plan, userData, onComplete }: PaymentFor
     },
   });
 
+  // Flag para evitar múltiplos envios ou redirecionamentos inesperados
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   // Função para processar o formulário
   const onSubmit = async (data: FormData) => {
+    // Evitar envio múltiplo do formulário
+    if (isSubmitting) {
+      console.warn('Formulário já está sendo processado, evitando envio duplicado');
+      return;
+    }
+
     try {
+      setIsSubmitting(true); // Marcar que estamos processando o envio
       setLoading(true);
       setError(null);
 
@@ -123,6 +133,8 @@ export function SimplifiedPaymentForm({ plan, userData, onComplete }: PaymentFor
         throw new Error(result.error || 'Erro ao processar pagamento');
       }
       
+      console.log('[Pagamento] Processamento bem-sucedido, notificando conclusão');
+      
       // Informar ao componente pai que o pagamento foi concluído com sucesso
       onComplete(true);
     } catch (err) {
@@ -131,6 +143,10 @@ export function SimplifiedPaymentForm({ plan, userData, onComplete }: PaymentFor
       onComplete(false);
     } finally {
       setLoading(false);
+      // Resetar o flag de envio após 1 segundo (permitirá nova tentativa após algum tempo)
+      setTimeout(() => {
+        setIsSubmitting(false);
+      }, 1000);
     }
   };
 

@@ -29,9 +29,12 @@ export function SubscriptionPage({ userData }: SubscriptionPageProps) {
   const router = useRouter();
   const [step, setStep] = useState<'select-plan' | 'payment' | 'success'>('select-plan');
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
+  const [paymentComplete, setPaymentComplete] = useState<boolean>(false);
   
   // Função para avançar para o passo de pagamento
   const handleSelectPlan = (plan: SubscriptionPlan) => {
+    // Reiniciar o estado de pagamento completo ao selecionar um plano
+    setPaymentComplete(false);
     setSelectedPlan(plan);
     setStep('payment');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -39,6 +42,8 @@ export function SubscriptionPage({ userData }: SubscriptionPageProps) {
   
   // Função para voltar para o passo de seleção de plano
   const handleBackToPlans = () => {
+    // Reiniciar o estado de pagamento ao voltar
+    setPaymentComplete(false);
     setStep('select-plan');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -46,14 +51,25 @@ export function SubscriptionPage({ userData }: SubscriptionPageProps) {
   // Função para lidar com a conclusão do pagamento
   const handlePaymentComplete = (success: boolean) => {
     if (success) {
+      // Marcar que o pagamento foi realmente concluído com sucesso
+      setPaymentComplete(true);
       setStep('success');
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      
+      // Registrar no console para debug
+      console.log('[Assinatura] Pagamento concluído com sucesso, exibindo tela de sucesso');
     }
   };
   
   // Função para redirecionar após o sucesso
   const handleRedirectToDashboard = () => {
-    router.push('/dashboard');
+    // Só permite redirecionamento se o pagamento foi concluído
+    if (paymentComplete) {
+      console.log('[Assinatura] Redirecionando para dashboard após pagamento');
+      router.push('/dashboard');
+    } else {
+      console.warn('[Assinatura] Tentativa de redirecionamento bloqueada - pagamento não concluído');
+    }
   };
   
   return (
@@ -110,9 +126,9 @@ export function SubscriptionPage({ userData }: SubscriptionPageProps) {
         )}
       </TransitionWrapper>
       
-      {/* 3. Sucesso */}
-      <TransitionWrapper isVisible={step === 'success' && !!selectedPlan}>
-        {selectedPlan && (
+      {/* 3. Sucesso - Exibido apenas quando o pagamento foi realmente concluído */}
+      <TransitionWrapper isVisible={step === 'success' && !!selectedPlan && paymentComplete}>
+        {selectedPlan && paymentComplete && (
           <UpgradeSuccessMessage 
             plan={selectedPlan} 
             onContinue={handleRedirectToDashboard}
