@@ -53,30 +53,17 @@ Este documento apresenta o planejamento detalhado e sequencial para o desenvolvi
     ASAAS_ACCESS_TOKEN=
     ```
 
-- [ ] **Configurar IDE e ferramentas de desenvolvimento**
-  - Configurar ESLint para TypeScript e React:
+- [ ] **Verificar configurações de desenvolvimento no boilerplate**
+  - Confirmar presença e funcionamento dos arquivos de configuração:
+    - `.eslintrc.js` ou `.eslintrc.json` para regras de linting
+    - `.prettierrc` para regras de formatação
+    - Configurações em `package.json` para scripts de lint e formatação
+  - Testar scripts de desenvolvimento:
     ```bash
-    npm install --save-dev eslint @typescript-eslint/eslint-plugin @typescript-eslint/parser eslint-plugin-react eslint-plugin-react-hooks
+    npm run lint # Verificar se o linting está funcionando
+    npm run dev # Testar servidor de desenvolvimento
     ```
-  - Criar arquivo `.eslintrc.js` com regras para projeto específico
-  - Configurar Prettier para formatação consistente:
-    ```bash
-    npm install --save-dev prettier eslint-config-prettier eslint-plugin-prettier
-    ```
-  - Criar arquivo `.prettierrc` com regras de formatação
-  - Configurar husky para pre-commit hooks:
-    ```bash
-    npm install --save-dev husky lint-staged
-    npx husky install
-    npx husky add .husky/pre-commit "npx lint-staged"
-    ```
-  - Adicionar em `package.json`:
-    ```json
-    "lint-staged": {
-      "*.{js,jsx,ts,tsx}": ["eslint --fix"],
-      "*.{json,css,md}": ["prettier --write"]
-    }
-    ```
+  - Instalar extensões recomendadas no VS Code se necessário (ESLint, Prettier)
 
 ### 1.2. Configuração dos Serviços AWS (3 dias)
 - [ ] **Criar conta/configurar AWS (ou usar existente)**
@@ -104,98 +91,159 @@ Este documento apresenta o planejamento detalhado e sequencial para o desenvolvi
       aws dynamodb describe-table --table-name Users
       aws dynamodb describe-table --table-name Tenants
       ```
-  - **Criar tabela AgroCredit conforme modelagem**
-    - Implementar script de criação de tabelas:
-      ```typescript
-      // scripts/create-tables.ts
-      import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-      import { DynamoDBDocumentClient, CreateTableCommand } from "@aws-sdk/lib-dynamodb";
-      
-      const client = new DynamoDBClient({ region: process.env.AWS_REGION });
-      const docClient = DynamoDBDocumentClient.from(client);
-      
-      // Tabela Conversations
-      const createConversationsTable = async () => {
-        const command = new CreateTableCommand({
-          TableName: `${process.env.DYNAMODB_TABLE_PREFIX}Conversations`,
-          KeySchema: [
-            { AttributeName: "tenantId", KeyType: "HASH" },
-            { AttributeName: "conversationId", KeyType: "RANGE" }
-          ],
-          AttributeDefinitions: [
-            { AttributeName: "tenantId", AttributeType: "S" },
-            { AttributeName: "conversationId", AttributeType: "S" },
-            { AttributeName: "createdAt", AttributeType: "S" },
-          ],
-          GlobalSecondaryIndexes: [
-            {
-              IndexName: "byCreatedAt",
-              KeySchema: [
-                { AttributeName: "tenantId", KeyType: "HASH" },
-                { AttributeName: "createdAt", KeyType: "RANGE" }
-              ],
-              Projection: { ProjectionType: "ALL" },
-              ProvisionedThroughput: { ReadCapacityUnits: 5, WriteCapacityUnits: 5 }
-            }
-          ],
-          BillingMode: "PAY_PER_REQUEST"
-        });
-        return docClient.send(command);
-      };
-      
-      // Executar criação das tabelas
-      async function main() {
-        try {
-          await createConversationsTable();
-          // Adicionar outras tabelas: Messages, Documents, etc.
-          console.log("Tabelas criadas com sucesso!");
-        } catch (error) {
-          console.error("Erro ao criar tabelas:", error);
-        }
-      }
-      
-      main();
+  - **Criar tabela única RuralCreditAI via AWS CLI**
+    ```bash
+    aws dynamodb create-table \
+      --table-name RuralCreditAI \
+      --attribute-definitions \
+        AttributeName=PK,AttributeType=S \
+        AttributeName=SK,AttributeType=S \
+        AttributeName=GSI1PK,AttributeType=S \
+        AttributeName=GSI1SK,AttributeType=S \
+        AttributeName=GSI2PK,AttributeType=S \
+        AttributeName=GSI2SK,AttributeType=S \
+      --key-schema \
+        AttributeName=PK,KeyType=HASH \
+        AttributeName=SK,KeyType=RANGE \
+      --global-secondary-indexes \
+        "[\
+          {\
+            \"IndexName\": \"GSI1\",\
+            \"KeySchema\": [\
+              {\"AttributeName\": \"GSI1PK\", \"KeyType\": \"HASH\"},\
+              {\"AttributeName\": \"GSI1SK\", \"KeyType\": \"RANGE\"}\
+            ],\
+            \"Projection\": {\"ProjectionType\": \"ALL\"},\
+            \"ProvisionedThroughput\": {\"ReadCapacityUnits\": 5, \"WriteCapacityUnits\": 5}\
+          },\
+          {\
+            \"IndexName\": \"GSI2\",\
+            \"KeySchema\": [\
+              {\"AttributeName\": \"GSI2PK\", \"KeyType\": \"HASH\"},\
+              {\"AttributeName\": \"GSI2SK\", \"KeyType\": \"RANGE\"}\
+            ],\
+            \"Projection\": {\"ProjectionType\": \"ALL\"},\
+            \"ProvisionedThroughput\": {\"ReadCapacityUnits\": 5, \"WriteCapacityUnits\": 5}\
+          }\
+        ]"\
+      --billing-mode PAY_PER_REQUEST
+    ```
+    
+    - Verificar a criação da tabela:
+      ```bash
+      aws dynamodb list-tables
       ```
-    - Criar tabelas principais:
-      - `{prefix}Conversations`: conversas dos usuários
-      - `{prefix}Messages`: mensagens individuais
-      - `{prefix}Documents`: documentos enviados/processados
-      - `{prefix}Contracts`: contratos gerados
-      - `{prefix}SimulationResults`: resultados de simulações financeiras
-    - Configurar índices GSI para consultas eficientes por data, tipo e status
+      
+    - Explicar a estrutura da tabela única e como ela armazenará diferentes entidades:
+      - **Conversas**: Chave primária `PK="TENANT#<tenantId>"` e `SK="CONVERSATION#<conversationId>"`
+      - **Mensagens**: Chave primária `PK="CONVERSATION#<conversationId>"` e `SK="MESSAGE#<timestamp>"`
+      - **Arquivos**: Chave primária `PK="TENANT#<tenantId>"` e `SK="FILE#<fileId>"`
+      - **Documentos**: Chave primária `PK="TENANT#<tenantId>"` e `SK="DOCUMENT#<documentId>"`
+      - **Uso**: Chave primária `PK="TENANT#<tenantId>"` e `SK="USAGE#<month>"`
 
-- [ ] **Configurar bucket S3 com a estrutura definida**
-  - **Criar bucket `rural-credit-ai-app-files`**
+- [ ] **Configurar bucket S3 com a estrutura hierárquica definida**
+  - **Criar bucket principal `rural-credit-ai-app-files`**
     ```bash
     aws s3api create-bucket --bucket rural-credit-ai-app-files --region us-east-1
     ```
-  - **Definir políticas de acesso e lifecycle**
-    - Criar arquivo de política de bucket `bucket-policy.json`:
+  
+  - **Habilitar versionamento para proteção de dados**
+    ```bash
+    aws s3api put-bucket-versioning --bucket rural-credit-ai-app-files --versioning-configuration Status=Enabled
+    ```
+  
+  - **Configurar política de ciclo de vida para arquivos temporários**
+    - Criar arquivo `temp-lifecycle-policy.json`:
+      ```json
+      {
+        "Rules": [
+          {
+            "ID": "ExpireTemporaryFiles",
+            "Status": "Enabled",
+            "Prefix": "tenants/*/temp/",
+            "Expiration": {
+              "Days": 1
+            }
+          }
+        ]
+      }
+      ```
+    
+    - Aplicar a política de ciclo de vida:
+      ```bash
+      aws s3api put-bucket-lifecycle-configuration --bucket rural-credit-ai-app-files --lifecycle-configuration file://temp-lifecycle-policy.json
+      ```
+  
+  - **Criar estrutura base de diretórios para um tenant exemplo**
+    ```bash
+    # Diretório de uploads para conversas
+    aws s3api put-object --bucket rural-credit-ai-app-files --key tenants/tenant-example/uploads/conversations/
+    
+    # Diretório de uploads para documentos
+    aws s3api put-object --bucket rural-credit-ai-app-files --key tenants/tenant-example/uploads/documents/
+    
+    # Diretório para documentos gerados
+    aws s3api put-object --bucket rural-credit-ai-app-files --key tenants/tenant-example/generated/contracts/
+    aws s3api put-object --bucket rural-credit-ai-app-files --key tenants/tenant-example/generated/simulations/
+    aws s3api put-object --bucket rural-credit-ai-app-files --key tenants/tenant-example/generated/reports/
+    
+    # Diretório para embeddings
+    aws s3api put-object --bucket rural-credit-ai-app-files --key tenants/tenant-example/embeddings/
+    
+    # Diretório temporário
+    aws s3api put-object --bucket rural-credit-ai-app-files --key tenants/tenant-example/temp/
+    ```
+  
+  - **Configurar política de controle de acesso por tenant**
+    - Criar arquivo `bucket-policy.json`:
       ```json
       {
         "Version": "2012-10-17",
         "Statement": [
           {
+            "Sid": "TenantIsolation",
             "Effect": "Allow",
             "Principal": {
               "AWS": "arn:aws:iam::ACCOUNT_ID:role/authenticated-user-role"
             },
-            "Action": [
-              "s3:GetObject",
-              "s3:PutObject"
+            "Action": ["s3:GetObject", "s3:PutObject", "s3:ListBucket"],
+            "Resource": [
+              "arn:aws:s3:::rural-credit-ai-app-files/tenants/${aws:PrincipalTag/TenantId}/*"
             ],
-            "Resource": "arn:aws:s3:::rural-credit-ai-app-files/tenants/${cognito:sub}/*"
+            "Condition": {
+              "StringEquals": {
+                "aws:PrincipalTag/TenantId": "${aws:PrincipalTag/TenantId}"
+              }
+            }
           }
         ]
       }
       ```
-    - Aplicar política:
+    
+    - Aplicar a política de bucket:
       ```bash
       aws s3api put-bucket-policy --bucket rural-credit-ai-app-files --policy file://bucket-policy.json
       ```
-    - Configurar CORS para o bucket:
+  
+  - **Configurar CORS para acesso via aplicação web**
+    - Criar arquivo `cors-policy.json`:
+      ```json
+      {
+        "CORSRules": [
+          {
+            "AllowedHeaders": ["*"],
+            "AllowedMethods": ["GET", "PUT", "POST", "DELETE"],
+            "AllowedOrigins": ["https://*.agrocredit.ai"],
+            "ExposeHeaders": ["ETag"],
+            "MaxAgeSeconds": 3000
+          }
+        ]
+      }
+      ```
+    
+    - Aplicar a política CORS:
       ```bash
-      aws s3api put-bucket-cors --bucket rural-credit-ai-app-files --cors-configuration file://cors.json
+      aws s3api put-bucket-cors --bucket rural-credit-ai-app-files --cors-configuration file://cors-policy.json
       ```
     - Criar regras de lifecycle para arquivos temporários (expiração em 7 dias)
   - Criar estrutura de pastas inicial:
@@ -2572,11 +2620,7 @@ Este documento apresenta o planejamento detalhado e sequencial para o desenvolvi
     }
     
     export const auth = new Auth();
-    ```
 
-- [ ] **Configurar integração com DynamoDB**
-  - Criar repositório base para DynamoDB em `src/repositories/baseRepo.ts`:
-    ```typescript
     import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
     import { 
       DynamoDBDocumentClient, 
@@ -2712,111 +2756,147 @@ Este documento apresenta o planejamento detalhado e sequencial para o desenvolvi
         return response.Items as T[] || [];
       }
     }
-    ```
-  
-  - Implementar repositório específico para conversas em `src/repositories/conversationsRepo.ts`:
-    ```typescript
-    import { BaseRepository } from './baseRepo';
+
+    import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+    import { 
+      DynamoDBDocumentClient, 
+      PutCommand, 
+      GetCommand, 
+      QueryCommand,
+      UpdateCommand,
+      DeleteCommand,
+      ScanCommand
+    } from '@aws-sdk/lib-dynamodb';
+    
+    export class BaseRepository {
+      protected client: DynamoDBDocumentClient;
+      protected tableName: string;
+      
+      constructor() {
+        const client = new DynamoDBClient({
+          region: process.env.AWS_REGION || 'us-east-1',
+          credentials: {
+            accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+            secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || ''
+          }
+        });
+        
+        this.client = DynamoDBDocumentClient.from(client);
+        this.tableName = 'RuralCreditAI';
+      }
+      
+      async create(item: Record<string, any>): Promise<Record<string, any>> {
+        const now = new Date().toISOString();
+        
+        const newItem = {
+          ...item,
+          createdAt: now,
+          updatedAt: now
+        };
+        
+        const command = new PutCommand({
+          TableName: this.tableName,
+          Item: newItem,
+        });
+        
+        await this.client.send(command);
+        return newItem;
+      }
+      
+      async get(key: Record<string, any>): Promise<Record<string, any> | null> {
+        const command = new GetCommand({
+          TableName: this.tableName,
+          Key: key
+        });
+        
+        const response = await this.client.send(command);
+        return response.Item || null;
+      }
+      
+      async update(key: Record<string, any>, updates: Record<string, any>): Promise<Record<string, any>> {
+        const now = new Date().toISOString();
+        
+        // Construir expressão de atualização dinamicamente
+        let updateExpression = 'set updatedAt = :updatedAt';
+        const expressionAttributeValues: Record<string, any> = {
+          ':updatedAt': now
+        };
+        
+        Object.entries(updates).forEach(([key, value]) => {
+          if (key !== 'PK' && key !== 'SK' && key !== 'createdAt') {
+            updateExpression += `, ${key} = :${key}`;
+            expressionAttributeValues[`:${key}`] = value;
+          }
+        });
+        
+        const command = new UpdateCommand({
+          TableName: this.tableName,
+          Key: key,
+          UpdateExpression: updateExpression,
+          ExpressionAttributeValues: expressionAttributeValues,
+          ReturnValues: 'ALL_NEW'
+        });
+        
+        const response = await this.client.send(command);
+        return response.Attributes || {};
+      }
+      
+      async delete(key: Record<string, any>): Promise<void> {
+        const command = new DeleteCommand({
+          TableName: this.tableName,
+          Key: key
+        });
+        
+        await this.client.send(command);
+      }
+      
+      async query(params: Record<string, any>): Promise<Record<string, any>[]> {
+        const command = new QueryCommand({
+          TableName: this.tableName,
+          ...params
+        });
+        
+        const response = await this.client.send(command);
+        return response.Items || [];
+      }
+      
+      async scan(params: Record<string, any> = {}): Promise<Record<string, any>[]> {
+        const command = new ScanCommand({
+          TableName: this.tableName,
+          ...params
+        });
+        
+        const response = await this.client.send(command);
+        return response.Items || [];
+      }
+    }
+    
+    export default new BaseRepository();
+
     import { v4 as uuidv4 } from 'uuid';
+    import baseRepo from './baseRepo';
     
     export interface Conversation {
       id: string;
       tenantId: string;
       userId: string;
       title: string;
-      createdAt: string;
-      updatedAt: string;
-      lastMessageAt?: string;
-      lastMessagePreview?: string;
-    }
-    
-    export interface ListConversationsParams {
-      tenantId: string;
-      page?: number;
-      limit?: number;
-      search?: string;
-    }
-    
-    class ConversationsRepository extends BaseRepository<Conversation> {
-      constructor() {
-        super('Conversations');
-      }
-      
-      /**
-       * Criar nova conversa
-       */
-      async create(data: Partial<Conversation>): Promise<Conversation> {
-        const id = uuidv4();
-        
-        return super.create({
-          id,
-          ...data
-        });
-      }
-      
-      /**
-       * Listar conversas de um tenant com paginação e busca
-       */
-      async listByUser({ tenantId, page = 1, limit = 20, search = '' }: ListConversationsParams): Promise<Conversation[]> {
-        const params: Record<string, any> = {
-          KeyConditionExpression: 'tenantId = :tenantId',
-          ExpressionAttributeValues: {
-            ':tenantId': tenantId
-          },
-          IndexName: 'byCreatedAt',
-          ScanIndexForward: false,
-          Limit: limit
-        };
-        
-        // Adicionar filtro de busca se fornecido
-        if (search) {
-          params.FilterExpression = 'contains(title, :search) OR contains(lastMessagePreview, :search)';
-          params.ExpressionAttributeValues[':search'] = search;
-        }
-        
-        // Implementar paginação simples
-        if (page > 1) {
-          // Nota: Implementação básica - em produção usar LastEvaluatedKey para paginação eficiente
-          params.Limit = page * limit;
-          const allResults = await this.query(params);
-          return allResults.slice((page - 1) * limit, page * limit);
-        }
-        
-        return this.query(params);
-      }
-      
-      /**
-       * Obter conversa por ID
-       */
-      async getById(id: string): Promise<Conversation | null> {
-        return super.getById(id);
-      }
-      
-      /**
-       * Atualizar conversa
-       */
-      async update(id: string, tenantId: string, updates: Partial<Conversation>): Promise<Conversation> {
-        return super.update({ id, tenantId }, updates);
-      }
-      
-      /**
-       * Excluir conversa
-       */
-      async delete(id: string, tenantId: string): Promise<void> {
-        return super.delete({ id, tenantId });
-      }
-    }
-    
-    export const conversationsRepo = new ConversationsRepository();
-    ```
-  
-  - Implementar outros repositórios em padrão semelhante:
-    - `src/repositories/messagesRepo.ts`
-    - `src/repositories/documentsRepo.ts`
-    - `src/repositories/usersRepo.ts`
-    - `src/repositories/subscriptionsRepo.ts`
+      lastMessageAt: string;
 
-### 3.2. Implementação do Sistema de Mensagens (5 dias)
+    // Obter o tenantId da conversa se não for fornecido
+    let tenantId = data.tenantId;
+    if (!tenantId && data.conversationId) {
+      const conversationResult = await baseRepo.query({
+        IndexName: 'GSI1',
+        KeyConditionExpression: 'GSI1SK = :sk',
+        ExpressionAttributeValues: {
+          ':sk': `CONVERSATION#${data.conversationId}`
+        },
+        Limit: 1
+      });
+
+      if (conversationResult.length > 0) {
+        tenantId = conversationResult[0].tenantId;
 - [ ] **Desenvolver endpoints para mensagens**
   - **Envio de mensagens** - Implementar endpoint em `src/app/api/messages/route.ts`:
     ```typescript
